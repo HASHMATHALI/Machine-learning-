@@ -48,7 +48,3 @@ This repository contains multiple **data science projects** that demonstrate ski
 
 ---
 
-## ⚡ How to Run  
-1. Clone this repository:  
-   ```bash
-   git clone https://github.com/HASHMATHALI/Machine-learning-.git
