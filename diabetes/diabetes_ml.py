@@ -1,3 +1,9 @@
+import sys
+
+# Windows consoles default to cp1252 and crash on the emoji used in status messages.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 import pandas as pd
 import numpy as np
 import argparse

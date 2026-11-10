@@ -7,6 +7,8 @@ This repository contains multiple **data science projects** that demonstrate ski
 ## 📂 Projects  
 
 ### 🚗 Car Price Prediction  
+> Note: the code for this project is not included in this repository yet.
+
 - **Goal:** Predict used car prices based on features such as mileage, fuel type, and engine power.  
 - **Techniques:** Data cleaning, missing value handling, outlier removal, regression modeling.  
 - **Models Used:** Linear Regression, Random Forest Regressor.  
@@ -48,3 +50,14 @@ This repository contains multiple **data science projects** that demonstrate ski
 
 ---
 
+---
+
+## ▶️ Running the projects
+
+```bash
+pip install pandas numpy scikit-learn matplotlib seaborn joblib
+
+cd clustering && python cust.py            # customer segmentation (K-Means)
+cd diabetes   && python diabetes_ml.py     # trains 3 classifiers, saves the best model
+python diabetes_ml.py --predict new_rows.csv   # score new patients with the saved model
+```
