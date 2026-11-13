@@ -102,7 +102,12 @@ def align_columns(df: pd.DataFrame, feature_cols: List[str]) -> pd.DataFrame:
 # -------------------- training & prediction --------------------
 
 def train_models(X_train, X_test, y_train, y_test, model_out: str):
-    """Trains Logistic Regression, Random Forest, and SVM; picks best by ROC AUC."""
+    """Trains Logistic Regression, Random Forest and SVM.
+
+    The winner is chosen by cross-validated ROC AUC on the training data. The
+    held-out test set is only used to report scores, never to choose a model
+    (choosing on the test set would make the reported score optimistic).
+    """
     common_steps = [
         ('imputer', SimpleImputer(strategy='median')),
         ('scaler', StandardScaler())
@@ -116,7 +121,7 @@ def train_models(X_train, X_test, y_train, y_test, model_out: str):
                 {'clf__C': [0.1, 1, 10], 'clf__kernel': ['rbf', 'linear']})
     }
 
-    best_model, best_name, best_auc = None, None, -1.0
+    best_model, best_name, best_cv, summary = None, None, -1.0, {}
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
     for name, (pipe, params) in models.items():
@@ -129,23 +134,29 @@ def train_models(X_train, X_test, y_train, y_test, model_out: str):
         except Exception:
             y_proba = None
         metrics = evaluate(y_test, y_pred, y_proba)
+        metrics["cv_roc_auc"] = float(gs.best_score_)
+        metrics["best_params"] = {k: v for k, v in gs.best_params_.items()}
+        summary[name] = metrics
 
         # save metrics per model
         with open(f"metrics_{name}.json", "w", encoding="utf-8") as f:
             json.dump(metrics, f, indent=2)
 
-        auc = metrics.get("roc_auc", 0.0) or 0.0
-        if auc > best_auc:
-            best_auc = auc
+        if gs.best_score_ > best_cv:
+            best_cv = float(gs.best_score_)
             best_model = gs.best_estimator_
             best_name = name
 
-    print(f"\n🏆 Best Model: {best_name} with ROC AUC: {best_auc:.3f}")
+    test_auc = summary[best_name].get("roc_auc")
+    print(f"\n🏆 Best Model: {best_name} (cross-validated ROC AUC {best_cv:.3f}, test ROC AUC {test_auc:.3f})")
+    with open("metrics_summary.json", "w", encoding="utf-8") as f:
+        json.dump({"selected": best_name, "selected_by": "5-fold cross-validated ROC AUC on the training split",
+                   "test_rows": int(len(y_test)), "models": summary}, f, indent=2)
     joblib.dump(best_model, model_out)
     print(f"💾 Model saved as {model_out}\n")
     return best_model
 
-def predict_new(model_path, input_csv, feature_sig_path: str = "feature_order.json"):
+def predict_new(model_path, input_csv, feature_sig_path: str = "feature_order.json", apply_pima_fix: bool = True):
     """Predicts diabetes outcomes for new data."""
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model not found: {model_path}")
@@ -154,6 +165,9 @@ def predict_new(model_path, input_csv, feature_sig_path: str = "feature_order.js
 
     model = joblib.load(model_path)
     new_data = pd.read_csv(input_csv)
+    if apply_pima_fix:
+        # same cleaning as training: a zero glucose/BMI/etc. means "not recorded"
+        new_data = pima_fix(new_data)
 
     # align to training features if signature exists
     if os.path.exists(feature_sig_path):
@@ -185,7 +199,7 @@ def main():
     args = parser.parse_args()
 
     if args.predict:
-        predict_new(args.model_out, args.predict)
+        predict_new(args.model_out, args.predict, apply_pima_fix=not args.disable_pima_fix)
     else:
         df = load_data(args.data_path)
         if not args.disable_pima_fix:
